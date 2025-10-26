@@ -1,9 +1,9 @@
-import { useNavigate } from "react-router-dom";
 import { createContext, useContext, useEffect, useState } from "react";
 import { IUser } from "@/types";
 import { getCurrentUser } from "@/lib/supabase/api";
+import { supabase } from "@/lib/supabase/config";
 
-export const INITIAL_USER = {
+export const INITIAL_USER: IUser = {
   id: "",
   name: "",
   username: "",
@@ -12,75 +12,91 @@ export const INITIAL_USER = {
   bio: "",
 };
 
-const INITIAL_STATE = {
+type AuthContextType = {
+  user: IUser;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  setUser: React.Dispatch<React.SetStateAction<IUser>>;
+  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
+  checkAuthUser: () => Promise<boolean>;
+};
+
+const INITIAL_STATE: AuthContextType = {
   user: INITIAL_USER,
   isLoading: false,
   isAuthenticated: false,
   setUser: () => {},
   setIsAuthenticated: () => {},
-  checkAuthUser: async () => false as boolean,
+  checkAuthUser: async () => false,
 };
 
-type IContextType = {
-  user: IUser;
-  isLoading: boolean;
-  setUser: React.Dispatch<React.SetStateAction<IUser>>;
-  isAuthenticated: boolean;
-  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
-  checkAuthUser: () => Promise<boolean>;
-};
-
-const AuthContext = createContext<IContextType>(INITIAL_STATE);
+const AuthContext = createContext<AuthContextType>(INITIAL_STATE);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const navigate = useNavigate();
   const [user, setUser] = useState<IUser>(INITIAL_USER);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const checkAuthUser = async () => {
-    setIsLoading(true);
+  const checkAuthUser = async (): Promise<boolean> => {
     try {
       const currentUser = await getCurrentUser();
 
-      if (currentUser) {
-        setUser({
-          id: currentUser.id || currentUser.accountId,
-          name: currentUser.name,
-          username: currentUser.username,
-          email: currentUser.email,
-          imageUrl: currentUser.imageUrl,
-          bio: currentUser.bio,
-        });
-
-        setIsAuthenticated(true);
-        return true;
+      if (!currentUser?.id) {
+        setIsAuthenticated(false);
+        setUser(INITIAL_USER);
+        return false;
       }
 
-      setIsAuthenticated(false);
-      return false;
+      setUser({
+        id: currentUser.id,
+        name: currentUser.name || "",
+        username:
+          currentUser.username ||
+          currentUser.email?.split("@")[0] ||
+          "",
+        email: currentUser.email || "",
+        imageUrl: currentUser.imageUrl || "",
+        bio: currentUser.bio || "",
+      });
+
+      setIsAuthenticated(true);
+      return true;
     } catch (error) {
-      console.error(error);
+      console.error("Auth check failed:", error);
+      setIsAuthenticated(false);
+      setUser(INITIAL_USER);
       return false;
     } finally {
       setIsLoading(false);
     }
   };
 
+  // ✅ Persist session login state
   useEffect(() => {
-    checkAuthUser();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      checkAuthUser();
+    });
+
+    checkAuthUser(); // initial load
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  const value = {
-    user,
-    setUser,
-    isLoading,
-    isAuthenticated,
-    setIsAuthenticated,
-    checkAuthUser,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        setUser,
+        isAuthenticated,
+        setIsAuthenticated,
+        isLoading,
+        checkAuthUser,
+      }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export const useUserContext = () => useContext(AuthContext);

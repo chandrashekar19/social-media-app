@@ -5,7 +5,7 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 
-import { QUERY_KEYS } from "@/lib/react-query/queryKeys";
+import { QUERY_KEYS } from "./queryKeys";
 import {
   createUserAccount,
   signInAccount,
@@ -25,16 +25,11 @@ import {
   searchPosts,
   savePost,
   deleteSavedPost,
-} from "@/lib/supabase/api";
+} from "../supabase/api";
 
-import { INewPost, INewUser, IUpdatePost, IUpdateUser, IPost, IUser } from "@/types";
-import { supabase, supabaseConfig } from "../supabase/config";
+import { INewPost, INewUser, IUpdatePost, IUpdateUser, IUser } from "@/types";
 
-
-// ============================================================
 // AUTH
-// ============================================================
-
 export const useCreateUserAccount = () =>
   useMutation({
     mutationFn: (user: INewUser) => createUserAccount(user),
@@ -51,18 +46,20 @@ export const useSignOutAccount = () =>
     mutationFn: signOutAccount,
   });
 
+export const useGetCurrentUser = () =>
+  useQuery({
+    queryKey: [QUERY_KEYS.GET_CURRENT_USER],
+    queryFn: getCurrentUser,
+  });
 
-// ============================================================
 // POSTS
-// ============================================================
 
 export const useGetPosts = () =>
   useInfiniteQuery({
     queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
-    queryFn: ({ pageParam = 0 }) =>
-      getInfinitePosts({ pageParam }),
+    queryFn: ({ pageParam = 0 }) => getInfinitePosts({ pageParam }),
     getNextPageParam: (lastPage, pages) =>
-      lastPage?.length === 9 ? pages.length * 9 : undefined,
+      lastPage?.length === 10 ? pages.length * 10 : undefined,
   });
 
 export const useSearchPosts = (searchTerm: string) =>
@@ -83,7 +80,12 @@ export const useCreatePost = () => {
   return useMutation({
     mutationFn: (post: INewPost) => createPost(post),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.GET_RECENT_POSTS] });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_INFINITE_POSTS],
+      });
     },
   });
 };
@@ -106,13 +108,19 @@ export const useUpdatePost = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (post: IUpdatePost) => updatePost(post),
-    onSuccess: (data: IPost | null) => {
+    onSuccess: (data: any) => {
       if (!data) return;
+
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_POST_BY_ID, data.id],
       });
+
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
     },
   });
@@ -121,11 +129,19 @@ export const useUpdatePost = () => {
 export const useDeletePost = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ postId, imageId }: { postId: string; imageId: string }) =>
-      deletePost(postId, imageId),
+    mutationFn: ({
+      postId,
+      imagePath,
+    }: {
+      postId: string;
+      imagePath?: string;
+    }) => deletePost(postId, imagePath),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_RECENT_POSTS],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
     },
   });
@@ -158,8 +174,13 @@ export const useLikePost = () => {
 export const useSavePost = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, postId }: { userId: string; postId: string }) =>
-      savePost(userId, postId),
+    mutationFn: ({
+      userId,
+      postId,
+    }: {
+      userId: string;
+      postId: string;
+    }) => savePost(userId, postId),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
@@ -180,16 +201,7 @@ export const useDeleteSavedPost = () => {
   });
 };
 
-
-// ============================================================
-// USERS
-// ============================================================
-
-export const useGetCurrentUser = () =>
-  useQuery({
-    queryKey: [QUERY_KEYS.GET_CURRENT_USER],
-    queryFn: getCurrentUser,
-  });
+//  USERS
 
 export const useGetUsers = (limit?: number) =>
   useQuery({
@@ -197,22 +209,12 @@ export const useGetUsers = (limit?: number) =>
     queryFn: () => getUsers(limit),
   });
 
-  export const useGetLikedPosts = (userId: string) =>
+export const useGetLikedPosts = (userId: string) =>
   useQuery({
     queryKey: [QUERY_KEYS.GET_LIKED_POSTS, userId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from(supabaseConfig.postTable)
-        .select("*, creator:users(*)")
-        .contains("likes", [userId])
-        .order("createdAt", { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!userId,
+    queryFn: () => null, // handled via getCurrentUser relations!
+    enabled: false, //  no separate query needed
   });
-
 
 export const useGetUserById = (userId: string) =>
   useQuery({
@@ -227,9 +229,11 @@ export const useUpdateUser = () => {
     mutationFn: (user: IUpdateUser) => updateUser(user),
     onSuccess: (data: IUser | null) => {
       if (!data) return;
+
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_CURRENT_USER],
       });
+
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.GET_USER_BY_ID, data.id],
       });

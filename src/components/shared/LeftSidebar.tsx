@@ -1,16 +1,19 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { INavLink } from "@/types";
-import { sidebarLinks } from "@/constants";
 import { Loader } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { useSignOutAccount } from "@/lib/react-query/queries";
 import { useUserContext, INITIAL_USER } from "@/context/AuthContext";
+import { sidebarLinks } from "@/constants";
 
 const LeftSidebar = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { user, setUser, setIsAuthenticated, isLoading } = useUserContext();
+
+
+  console.log("USER IN SIDEBAR:", user);
 
   const { mutate: signOut } = useSignOutAccount();
 
@@ -49,7 +52,7 @@ const LeftSidebar = () => {
             />
             <div className="flex flex-col">
               <p className="body-bold">{user.name}</p>
-              <p className="small-regular text-light-3">@{user.username}</p>
+              <p className="small-regular text-white">@{user.username}</p>
             </div>
           </Link>
         )}

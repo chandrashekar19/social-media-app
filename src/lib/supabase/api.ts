@@ -1,9 +1,7 @@
 import { INewPost, IUpdatePost, INewUser, IUpdateUser } from "@/types";
 import { supabase, supabaseConfig } from "./config";
 
-// AUTH
-
-// SIGN UP
+//  AUTH
 export async function createUserAccount(user: INewUser) {
   const { data, error } = await supabase.auth.signUp({
     email: user.email,
@@ -12,28 +10,28 @@ export async function createUserAccount(user: INewUser) {
       data: {
         name: user.name,
         username: user.username,
-      }
-    }
+      },
+    },
   });
 
   if (error) throw error;
 
   const newUser = await saveUserToDB({
-    accountId: data.user?.id!,
+    accountid: data.user!.id,
     email: user.email,
     name: user.name,
     username: user.username,
-    imageUrl: `https://api.dicebear.com/6.x/initials/svg?seed=${user.name}`
+    bio: "",
+    imageurl: `https://api.dicebear.com/6.x/initials/svg?seed=${user.name}`
   });
 
   return newUser;
 }
 
-// SAVE USER TO DB
 export async function saveUserToDB(user: any) {
   const { data, error } = await supabase
     .from(supabaseConfig.userTable)
-    .insert([user])
+    .insert(user)
     .select()
     .single();
 
@@ -41,164 +39,174 @@ export async function saveUserToDB(user: any) {
   return data;
 }
 
-// SIGN IN
 export async function signInAccount(user: { email: string; password: string }) {
   const { data, error } = await supabase.auth.signInWithPassword(user);
   if (error) throw error;
   return data;
 }
 
-// GET ACCOUNT (Auth user)
 export async function getAccount() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
+  const { data } = await supabase.auth.getUser();
   return data.user;
 }
 
-// GET CURRENT USER FROM DB
+//  GET CURRENT USER (Posts + Saved)
 export async function getCurrentUser() {
-  const auth = await getAccount();
-  if (!auth) return null;
+  const account = await getAccount();
+  if (!account) return null;
 
   const { data, error } = await supabase
     .from(supabaseConfig.userTable)
-    .select("*")
-    .eq("accountId", auth.id)
+    .select(`
+      *,
+      posts:posts(*),
+      saved:saves(id, post:posts(*))
+    `)
+    .eq("accountid", account.id)
     .single();
 
   if (error) return null;
   return data;
 }
 
-// SIGN OUT
 export async function signOutAccount() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
-  return { status: "ok" };
+  await supabase.auth.signOut();
 }
 
 
-// ============================================================
-// STORAGE
-// ============================================================
-
-// UPLOAD FILE
+//  STORAGE
 export async function uploadFile(file: File) {
   const filePath = `${Date.now()}-${file.name}`;
-
   const { error } = await supabase.storage
     .from(supabaseConfig.storageBucket)
     .upload(filePath, file);
-
   if (error) throw error;
   return filePath;
 }
 
-// GET FILE URL
 export function getFilePreview(filePath: string) {
-  return supabase.storage.from(supabaseConfig.storageBucket).getPublicUrl(filePath).data.publicUrl;
+  return supabase.storage.from(supabaseConfig.storageBucket)
+    .getPublicUrl(filePath).data.publicUrl;
 }
 
-// DELETE FILE
 export async function deleteFile(filePath: string) {
-  const { error } = await supabase.storage
-    .from(supabaseConfig.storageBucket)
-    .remove([filePath]);
-
-  if (error) throw error;
-  return { status: "ok" };
+  await supabase.storage.from(supabaseConfig.storageBucket).remove([filePath]);
 }
 
 
-// ============================================================
 // POSTS
-// ============================================================
-
-// CREATE POST
 export async function createPost(post: INewPost) {
   const filePath = await uploadFile(post.file[0]);
-  const fileUrl = getFilePreview(filePath);
-  const tags = post.tags?.replace(/ /g, "").split(",") || [];
+  const imageurl = getFilePreview(filePath);
 
   const { data, error } = await supabase
     .from(supabaseConfig.postTable)
-    .insert([{
+    .insert({
       creator: post.userId,
       caption: post.caption,
-      imageUrl: fileUrl,
-      imagePath: filePath,
       location: post.location,
-      tags
-    }])
-    .select()
+      tags: post.tags?.split(",") || [],
+      imageurl,
+      imagepath: filePath,
+      updatedAt: new Date(),
+    })
+    .select(`
+      *,
+      creatorData:users(*)
+    `)
     .single();
-
-  if (error) {
-    await deleteFile(filePath);
-    throw error;
-  }
-
-  return data;
-}
-
-// GET POSTS WITH SEARCH
-export async function searchPosts(searchTerm: string) {
-  const { data, error } = await supabase
-    .from(supabaseConfig.postTable)
-    .select("*")
-    .ilike("caption", `%${searchTerm}%`);
 
   if (error) throw error;
   return data;
 }
 
-// GET INFINITE POSTS
-export async function getInfinitePosts({ pageParam = 0 }: { pageParam?: number }) {
+export async function getInfinitePosts({ pageParam = 0 }: any) {
   const { data, error } = await supabase
     .from(supabaseConfig.postTable)
-    .select("*")
-    .order("updated_at", { ascending: false })
+    .select(`
+      *,
+      creatorData:users(*)
+    `)
+    .order("createdAt", { ascending: false })
     .range(pageParam, pageParam + 9);
 
   if (error) throw error;
   return data;
 }
 
-// GET POST BY ID
-export async function getPostById(postId: string) {
+export async function searchPosts(searchTerm: string) {
   const { data, error } = await supabase
     .from(supabaseConfig.postTable)
-    .select("*")
-    .eq("id", postId)
+    .select(`
+      *,
+      creatorData:users(*)
+    `)
+    .ilike("caption", `%${searchTerm}%`);
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getPostById(id: string) {
+  const { data, error } = await supabase
+    .from(supabaseConfig.postTable)
+    .select(`
+      *,
+      creatorData:users(*)
+    `)
+    .eq("id", id)
     .single();
 
   if (error) throw error;
   return data;
 }
 
-// UPDATE POST
+export async function getRecentPosts() {
+  const { data, error } = await supabase
+    .from(supabaseConfig.postTable)
+    .select(`
+      *,
+      creatorData:users(*)
+    `)
+    .order("createdAt", { ascending: false })
+    .limit(20);
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getUserPosts(userId: string) {
+  const { data, error } = await supabase
+    .from(supabaseConfig.postTable)
+    .select(`
+      *,
+      creatorData:users(*)
+    `)
+    .eq("creator", userId)
+    .order("createdAt", { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
 export async function updatePost(post: IUpdatePost) {
-  let imagePath = post.imageId;
-  let imageUrl = post.imageUrl;
+  let imagepath = post.imageId;
+  let imageurl = post.imageUrl;
 
   if (post.file.length > 0) {
-    const newFilePath = await uploadFile(post.file[0]);
-    imagePath = newFilePath;
-    imageUrl = getFilePreview(newFilePath);
-
-    if (post.imageId) {
-      await deleteFile(post.imageId);
-    }
+    imagepath = await uploadFile(post.file[0]);
+    imageurl = getFilePreview(imagepath);
   }
 
   const { data, error } = await supabase
     .from(supabaseConfig.postTable)
     .update({
       caption: post.caption,
-      imageUrl,
-      imagePath,
       location: post.location,
-      tags: post.tags?.replace(/ /g, "").split(",") || []
+      tags: post.tags?.split(",") || [],
+      imageurl,
+      imagepath,
+      updatedAt: new Date(),
     })
     .eq("id", post.postId)
     .select()
@@ -208,96 +216,60 @@ export async function updatePost(post: IUpdatePost) {
   return data;
 }
 
-// DELETE POST
-export async function deletePost(postId: string, imagePath: string) {
-  await supabase.from(supabaseConfig.postTable).delete().eq("id", postId);
-  if (imagePath) await deleteFile(imagePath);
-  return { status: "ok" };
+export async function deletePost(postId: string, imagepath?: string) {
+  const { error } = await supabase
+    .from(supabaseConfig.postTable)
+    .delete()
+    .eq("id", postId);
+
+  if (imagepath) await deleteFile(imagepath);
+  if (error) throw error;
 }
 
-
-// LIKE POST
-export async function likePost(postId: string, likes: string[]) {
+export async function likePost(postId: string, likesArray: string[]) {
   const { data, error } = await supabase
     .from(supabaseConfig.postTable)
-    .update({ likes })
+    .update({ likes: likesArray, updatedAt: new Date() })
     .eq("id", postId)
     .select()
     .single();
-
   if (error) throw error;
   return data;
 }
 
 
-// SAVE POST
+//  SAVES
 export async function savePost(userId: string, postId: string) {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from(supabaseConfig.savesTable)
-    .insert([{
-      user: userId,
-      post: postId
-    }])
-    .select()
-    .single();
-
+    .insert({ user: userId, post: postId });
   if (error) throw error;
-  return data;
 }
 
-// DELETE SAVED POST
-export async function deleteSavedPost(savedId: string) {
-  await supabase.from(supabaseConfig.savesTable).delete().eq("id", savedId);
-  return { status: "ok" };
+export async function deleteSavedPost(id: string) {
+  await supabase.from(supabaseConfig.savesTable).delete().eq("id", id);
 }
 
 
-// GET USER POSTS
-export async function getUserPosts(userId: string) {
-  const { data, error } = await supabase
-    .from(supabaseConfig.postTable)
-    .select("*")
-    .eq("creator", userId)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-  return data;
-}
-
-
-// GET RECENT POSTS
-export async function getRecentPosts() {
-  const { data, error } = await supabase
-    .from(supabaseConfig.postTable)
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  if (error) throw error;
-  return data;
-}
-
-
-// ============================================================
-// USERS
-// ============================================================
-
-// GET USERS LIST
+//  USERS
 export async function getUsers(limit?: number) {
-  let query = supabase.from(supabaseConfig.userTable).select("*").order("createdAt", { ascending: false });
+  let query = supabase.from(supabaseConfig.userTable)
+    .select("*")
+    .order("createdAt", { ascending: false });
 
   if (limit) query = query.limit(limit);
-
   const { data, error } = await query;
   if (error) throw error;
   return data;
 }
 
-// GET USER BY ID
 export async function getUserById(userId: string) {
   const { data, error } = await supabase
     .from(supabaseConfig.userTable)
-    .select("*")
+    .select(`
+      *,
+      posts:posts(*)
+    `)
     .eq("id", userId)
     .single();
 
@@ -305,19 +277,13 @@ export async function getUserById(userId: string) {
   return data;
 }
 
-// UPDATE USER
 export async function updateUser(user: IUpdateUser) {
-  let imageId = user.imageId;
-  let imageUrl = user.imageUrl;
+  let imagepath = user.imageId;
+  let imageurl = user.imageUrl;
 
   if (user.file.length > 0) {
-    const uploadedPath = await uploadFile(user.file[0]);
-    imageId = uploadedPath;
-    imageUrl = getFilePreview(uploadedPath);
-
-    if (user.imageId) {
-      await deleteFile(user.imageId);
-    }
+    imagepath = await uploadFile(user.file[0]);
+    imageurl = getFilePreview(imagepath);
   }
 
   const { data, error } = await supabase
@@ -325,8 +291,9 @@ export async function updateUser(user: IUpdateUser) {
     .update({
       name: user.name,
       bio: user.bio,
-      imageUrl,
-      imageId,
+      imageurl,
+      imageid: imagepath,
+      updatedAt: new Date(),
     })
     .eq("id", user.userId)
     .select()
