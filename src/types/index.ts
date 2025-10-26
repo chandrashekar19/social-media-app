@@ -25,7 +25,7 @@ export type IUpdatePost = {
   postId: string;
   caption: string;
   imageId: string;
-  imageUrl: URL;
+  imageUrl: string | URL;
   file: File[];
   location?: string;
   tags?: string;

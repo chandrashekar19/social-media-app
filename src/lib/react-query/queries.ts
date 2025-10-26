@@ -25,7 +25,7 @@ import {
   searchPosts,
   savePost,
   deleteSavedPost,
-} from "@/lib/appwrite/api";
+} from "@/lib/supabase/api";
 import { INewPost, INewUser, IUpdatePost, IUpdateUser } from "@/types";
 
 // ============================================================
@@ -99,7 +99,7 @@ export const useCreatePost = () => {
   });
 };
 
-export const useGetPostById = (postId?: string) => {
+export const useGetPostById = (postId: string) => {
   return useQuery({
     queryKey: [QUERY_KEYS.GET_POST_BY_ID, postId],
     queryFn: () => getPostById(postId),
@@ -107,7 +107,7 @@ export const useGetPostById = (postId?: string) => {
   });
 };
 
-export const useGetUserPosts = (userId?: string) => {
+export const useGetUserPosts = (userId: string) => {
   return useQuery({
     queryKey: [QUERY_KEYS.GET_USER_POSTS, userId],
     queryFn: () => getUserPosts(userId),
@@ -130,7 +130,7 @@ export const useUpdatePost = () => {
 export const useDeletePost = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ postId, imageId }: { postId?: string; imageId: string }) =>
+    mutationFn: ({ postId, imageId }: { postId: string; imageId: string }) =>
       deletePost(postId, imageId),
     onSuccess: () => {
       queryClient.invalidateQueries({
