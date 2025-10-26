@@ -4,13 +4,21 @@ export type INavLink = {
   label: string;
 };
 
-export type IUpdateUser = {
-  userId: string;
+export type INewUser = {
   name: string;
-  bio: string;
-  imageId: string;
-  imageUrl: URL | string;
-  file: File[];
+  email: string;
+  username: string;
+  password: string;
+};
+
+export type IUser = {
+  id: string;         // users.id (PK)
+  accountId?: string; // supabase.auth.user.id
+  name: string;
+  username: string;
+  email: string;
+  imageUrl: string;
+  bio?: string;
 };
 
 export type INewPost = {
@@ -25,24 +33,30 @@ export type IUpdatePost = {
   postId: string;
   caption: string;
   imageId: string;
-  imageUrl: string | URL;
+  imageUrl: string;
   file: File[];
   location?: string;
   tags?: string;
 };
 
-export type IUser = {
+export type IPost = {
   id: string;
-  name: string;
-  username: string;
-  email: string;
+  creator: IUser | string; // Joined result or ID only
+  caption: string;
   imageUrl: string;
-  bio: string;
+  imagePath: string;
+  location?: string;
+  tags?: string[];
+  likes?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 };
 
-export type INewUser = {
+export type IUpdateUser = {
+  userId: string;
   name: string;
-  email: string;
-  username: string;
-  password: string;
+  bio?: string;
+  imageId?: string;
+  imageUrl?: string;
+  file: File[];
 };

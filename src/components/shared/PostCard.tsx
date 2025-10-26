@@ -1,31 +1,30 @@
-import { Models } from "appwrite";
 import { Link } from "react-router-dom";
-
 import { PostStats } from "@/components/shared";
 import { multiFormatDateString } from "@/lib/utils";
 import { useUserContext } from "@/context/AuthContext";
+import { IPost } from "@/types";
 
 type PostCardProps = {
-  post: Models.Document;
+  post: IPost;
 };
 
 const PostCard = ({ post }: PostCardProps) => {
   const { user } = useUserContext();
 
-  if (!post.creator) return;
+  if (!post?.creator || typeof post.creator === "string") return null;
+
+  const isOwner = user.id === post.creator.id;
 
   return (
     <div className="post-card">
       <div className="flex-between">
+        {/* Creator Info */}
         <div className="flex items-center gap-3">
-          <Link to={`/profile/${post.creator.$id}`}>
+          <Link to={`/profile/${post.creator.id}`}>
             <img
-              src={
-                post.creator?.imageUrl ||
-                "/assets/icons/profile-placeholder.svg"
-              }
-              alt="creator"
-              className="w-12 lg:h-12 rounded-full"
+              src={post.creator.imageUrl || "/assets/icons/profile-placeholder.svg"}
+              alt={post.creator.name}
+              className="w-12 h-12 rounded-full object-cover"
             />
           </Link>
 
@@ -34,8 +33,8 @@ const PostCard = ({ post }: PostCardProps) => {
               {post.creator.name}
             </p>
             <div className="flex-center gap-2 text-light-3">
-              <p className="subtle-semibold lg:small-regular ">
-                {multiFormatDateString(post.$createdAt)}
+              <p className="subtle-semibold lg:small-regular">
+                {multiFormatDateString(post.createdAt!)}
               </p>
               •
               <p className="subtle-semibold lg:small-regular">
@@ -45,24 +44,21 @@ const PostCard = ({ post }: PostCardProps) => {
           </div>
         </div>
 
-        <Link
-          to={`/update-post/${post.$id}`}
-          className={`${user.id !== post.creator.$id && "hidden"}`}>
-          <img
-            src={"/assets/icons/edit.svg"}
-            alt="edit"
-            width={20}
-            height={20}
-          />
-        </Link>
+        {/* Edit Button Only For Owner */}
+        {isOwner && (
+          <Link to={`/update-post/${post.id}`}>
+            <img src="/assets/icons/edit.svg" alt="edit" width={20} height={20} />
+          </Link>
+        )}
       </div>
 
-      <Link to={`/posts/${post.$id}`}>
+      {/* Content */}
+      <Link to={`/posts/${post.id}`}>
         <div className="small-medium lg:base-medium py-5">
           <p>{post.caption}</p>
           <ul className="flex gap-1 mt-2">
-            {post.tags.map((tag: string, index: string) => (
-              <li key={`${tag}${index}`} className="text-light-3 small-regular">
+            {post.tags?.map((tag: string, index: number) => (
+              <li key={`${tag}-${index}`} className="text-light-3 small-regular">
                 #{tag}
               </li>
             ))}
@@ -70,12 +66,13 @@ const PostCard = ({ post }: PostCardProps) => {
         </div>
 
         <img
-          src={post.imageUrl || "/assets/icons/profile-placeholder.svg"}
-          alt="post image"
+          src={post.imageUrl}
+          alt="post"
           className="post-card_img"
         />
       </Link>
 
+      {/* Like + Save Component */}
       <PostStats post={post} userId={user.id} />
     </div>
   );

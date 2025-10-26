@@ -1,8 +1,5 @@
 import * as z from "zod";
 
-// ============================================================
-// USER
-// ============================================================
 export const SignupValidation = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   username: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -23,9 +20,6 @@ export const ProfileValidation = z.object({
   bio: z.string(),
 });
 
-// ============================================================
-// POST
-// ============================================================
 export const PostValidation = z.object({
   caption: z.string().min(5, { message: "Minimum 5 characters." }).max(2200, { message: "Maximum 2,200 caracters" }),
   file: z.custom<File[]>(),

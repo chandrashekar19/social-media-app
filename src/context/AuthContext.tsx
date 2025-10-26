@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { createContext, useContext, useEffect, useState } from "react";
-
 import { IUser } from "@/types";
+import { getCurrentUser } from "@/lib/supabase/api";
 
 export const INITIAL_USER = {
   id: "",
@@ -35,27 +35,29 @@ const AuthContext = createContext<IContextType>(INITIAL_STATE);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [user, setUser] = useState<IUser>(INITIAL_USER);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const checkAuthUser = async () => {
     setIsLoading(true);
     try {
-      const currentAccount = await getCurrentUser();
-      if (currentAccount) {
-        setUser({
-          id: currentAccount.$id,
-          name: currentAccount.name,
-          username: currentAccount.username,
-          email: currentAccount.email,
-          imageUrl: currentAccount.imageUrl,
-          bio: currentAccount.bio,
-        });
-        setIsAuthenticated(true);
+      const currentUser = await getCurrentUser();
 
+      if (currentUser) {
+        setUser({
+          id: currentUser.id || currentUser.accountId,
+          name: currentUser.name,
+          username: currentUser.username,
+          email: currentUser.email,
+          imageUrl: currentUser.imageUrl,
+          bio: currentUser.bio,
+        });
+
+        setIsAuthenticated(true);
         return true;
       }
 
+      setIsAuthenticated(false);
       return false;
     } catch (error) {
       console.error(error);
@@ -66,15 +68,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const cookieFallback = localStorage.getItem("cookieFallback");
-    if (
-      cookieFallback === "[]" ||
-      cookieFallback === null ||
-      cookieFallback === undefined
-    ) {
-      navigate("/sign-in");
-    }
-
     checkAuthUser();
   }, []);
 

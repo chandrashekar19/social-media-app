@@ -24,6 +24,10 @@ const UpdateProfile = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user, setUser } = useUserContext();
+
+  const { data: currentUser, isLoading } = useGetUserById(id as string);
+  const { mutateAsync: updateUser, isLoading: isLoadingUpdate } = useUpdateUser();
+
   const form = useForm<z.infer<typeof ProfileValidation>>({
     resolver: zodResolver(ProfileValidation),
     defaultValues: {
@@ -35,42 +39,41 @@ const UpdateProfile = () => {
     },
   });
 
-  // Queries
-  const { data: currentUser } = useGetUserById(id || "");
-  const { mutateAsync: updateUser, isLoading: isLoadingUpdate } =
-    useUpdateUser();
-
-  if (!currentUser)
+  if (!currentUser || isLoading)
     return (
       <div className="flex-center w-full h-full">
         <Loader />
       </div>
     );
 
-  // Handler
-  const handleUpdate = async (value: z.infer<typeof ProfileValidation>) => {
-    const updatedUser = await updateUser({
-      userId: currentUser.$id,
-      name: value.name,
-      bio: value.bio,
-      file: value.file,
-      imageUrl: currentUser.imageUrl,
-      imageId: currentUser.imageId,
-    });
-
-    if (!updatedUser) {
-      toast({
-        title: `Update user failed. Please try again.`,
+  const handleUpdate = async (values: z.infer<typeof ProfileValidation>) => {
+    try {
+      const updated = await updateUser({
+        userId: currentUser.id,
+        name: values.name,
+        bio: values.bio,
+        file: values.file,
+        imageUrl: currentUser.imageUrl,
+        imageId: currentUser.imageId, // storage file path
       });
-    }
 
-    setUser({
-      ...user,
-      name: updatedUser?.name,
-      bio: updatedUser?.bio,
-      imageUrl: updatedUser?.imageUrl,
-    });
-    return navigate(`/profile/${id}`);
+      if (!updated) {
+        toast({ title: "Update user failed. Please try again." });
+        return;
+      }
+
+      setUser({
+        ...user,
+        name: updated.name,
+        bio: updated.bio,
+        imageUrl: updated.imageUrl,
+      });
+
+      toast({ title: "Profile updated ✅" });
+      navigate(`/profile/${currentUser.id}`);
+    } catch (error) {
+      toast({ title: "Something went wrong!" });
+    }
   };
 
   return (
@@ -90,7 +93,9 @@ const UpdateProfile = () => {
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(handleUpdate)}
-            className="flex flex-col gap-7 w-full mt-4 max-w-5xl">
+            className="flex flex-col gap-7 w-full mt-4 max-w-5xl"
+          >
+            {/* IMAGE UPLOAD */}
             <FormField
               control={form.control}
               name="file"
@@ -99,7 +104,7 @@ const UpdateProfile = () => {
                   <FormControl>
                     <ProfileUploader
                       fieldChange={field.onChange}
-                      mediaUrl={currentUser.imageUrl}
+                      mediaUrl={currentUser.imageUrl ?? ""}
                     />
                   </FormControl>
                   <FormMessage className="shad-form_message" />
@@ -107,6 +112,7 @@ const UpdateProfile = () => {
               )}
             />
 
+            {/* NAME */}
             <FormField
               control={form.control}
               name="name"
@@ -114,13 +120,13 @@ const UpdateProfile = () => {
                 <FormItem>
                   <FormLabel className="shad-form_label">Name</FormLabel>
                   <FormControl>
-                    <Input type="text" className="shad-input" {...field} />
+                    <Input type="text" {...field} className="shad-input" />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
 
+            {/* USERNAME */}
             <FormField
               control={form.control}
               name="username"
@@ -128,18 +134,13 @@ const UpdateProfile = () => {
                 <FormItem>
                   <FormLabel className="shad-form_label">Username</FormLabel>
                   <FormControl>
-                    <Input
-                      type="text"
-                      className="shad-input"
-                      {...field}
-                      disabled
-                    />
+                    <Input type="text" {...field} disabled className="shad-input" />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
 
+            {/* EMAIL */}
             <FormField
               control={form.control}
               name="email"
@@ -147,18 +148,13 @@ const UpdateProfile = () => {
                 <FormItem>
                   <FormLabel className="shad-form_label">Email</FormLabel>
                   <FormControl>
-                    <Input
-                      type="text"
-                      className="shad-input"
-                      {...field}
-                      disabled
-                    />
+                    <Input type="text" {...field} disabled className="shad-input" />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
 
+            {/* BIO */}
             <FormField
               control={form.control}
               name="bio"
@@ -166,29 +162,23 @@ const UpdateProfile = () => {
                 <FormItem>
                   <FormLabel className="shad-form_label">Bio</FormLabel>
                   <FormControl>
-                    <Textarea
-                      className="shad-textarea custom-scrollbar"
-                      {...field}
-                    />
+                    <Textarea {...field} className="shad-textarea custom-scrollbar" />
                   </FormControl>
-                  <FormMessage className="shad-form_message" />
                 </FormItem>
               )}
             />
 
-            <div className="flex gap-4 items-center justify-end">
-              <Button
-                type="button"
-                className="shad-button_dark_4"
-                onClick={() => navigate(-1)}>
+            {/* ACTIONS */}
+            <div className="flex gap-4 justify-end">
+              <Button type="button" onClick={() => navigate(-1)} className="shad-button_dark_4">
                 Cancel
               </Button>
               <Button
                 type="submit"
                 className="shad-button_primary whitespace-nowrap"
-                disabled={isLoadingUpdate}>
-                {isLoadingUpdate && <Loader />}
-                Update Profile
+                disabled={isLoadingUpdate}
+              >
+                {isLoadingUpdate && <Loader />} Update Profile
               </Button>
             </div>
           </form>
