@@ -28,6 +28,7 @@ import {
 } from "@/lib/supabase/api";
 
 import { INewPost, INewUser, IUpdatePost, IUpdateUser, IPost, IUser } from "@/types";
+import { supabase, supabaseConfig } from "../supabase/config";
 
 
 // ============================================================
@@ -195,6 +196,23 @@ export const useGetUsers = (limit?: number) =>
     queryKey: [QUERY_KEYS.GET_USERS, limit],
     queryFn: () => getUsers(limit),
   });
+
+  export const useGetLikedPosts = (userId: string) =>
+  useQuery({
+    queryKey: [QUERY_KEYS.GET_LIKED_POSTS, userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from(supabaseConfig.postTable)
+        .select("*, creator:users(*)")
+        .contains("likes", [userId])
+        .order("createdAt", { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userId,
+  });
+
 
 export const useGetUserById = (userId: string) =>
   useQuery({
